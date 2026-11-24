@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MandiMitra: CropCash Hack – Smart Agricultural Market Intelligence</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            emerald: {
+              850: '#064e3b',
+              950: '#022c22',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="min-h-screen flex flex-col bg-stone-100 text-slate-900">
+
+  <!-- Toast Notification Container (Replaces alert/confirm) -->
+  <div id="toast-container" class="fixed bottom-4 right-4 left-4 sm:left-auto sm:w-96 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Offline Status Banner (Visible when Offline Mode is toggled ON) -->
+  <div id="offline-banner" class="hidden bg-amber-600 text-white px-4 py-2.5 text-sm font-semibold shadow-md transition-all">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <i data-lucide="wifi-off" class="w-4 h-4 shrink-0"></i>
+        <span id="offline-banner-text">Offline Mode Active: Showing LocalStorage Cached Rates</span>
+      </div>
+      <span id="cache-timestamp-badge" class="bg-amber-800/80 text-amber-100 text-xs px-2.5 py-1 rounded-full font-mono">
+        Last Updated: Just Now
+      </span>
+    </div>
+  </div>
+
+  <!-- Top Navigation Header -->
+  <header class="bg-emerald-900 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 sm:py-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Brand Logo & Title -->
+        <div class="flex items-center gap-3">
+          <div class="bg-amber-500 text-emerald-950 p-2.5 rounded-xl shadow-inner flex items-center justify-center">
+            <i data-lucide="sprout" class="w-6 h-6 stroke-[2.5]"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight leading-none" data-i18n="appTitle">MandiMitra</h1>
+              <span class="bg-emerald-700 text-emerald-100 text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border border-emerald-600">
+                CropCash Hack
+              </span>
+            </div>
+            <p class="text-xs sm:text-sm text-emerald-200 mt-0.5" data-i18n="appSubtitle">
+              Real-Time APMC Prices, EMA Forecasts & Net Profit Advisor
+            </p>
+          </div>
+        </div>
+
+        <!-- Global Controls: Language, Offline Toggle, Refresh, WhatsApp Digest -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+          <!-- Multilingual Selector -->
+          <div class="relative flex items-center bg-emerald-800 border border-emerald-700 rounded-xl px-2.5 py-1.5">
+            <i data-lucide="languages" class="w-4 h-4 text-amber-400 mr-1.5 shrink-0"></i>
+            <select id="lang-select" aria-label="Select Language" class="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer pr-1">
+              <option value="en" class="text-slate-900">English</option>
+              <option value="hi" class="text-slate-900">हिन्दी (Hindi)</option>
+              <option value="te" class="text-slate-900">తెలుగు (Telugu)</option>
+              <option value="mr" class="text-slate-900">मराठी (Marathi)</option>
+            </select>
+          </div>
+
+          <!-- Offline Simulation Switch -->
+          <button id="toggle-offline-btn" type="button" class="flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-700 active:scale-95 border border-emerald-600 text-white text-xs sm:text-sm font-semibold px-3 py-2 rounded-xl transition cursor-pointer">
+            <span id="network-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="network-label" data-i18n="liveOnline">Live Online</span>
+          </button>
+
+          <!-- Refresh Live Feed Button -->
+          <button id="refresh-feed-btn" type="button" title="Refresh Live Mandi Feed" class="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white text-xs sm:text-sm font-semibold px-3 py-2 rounded-xl transition cursor-pointer">
+            <i data-lucide="refresh-cw" id="refresh-icon" class="w-4 h-4"></i>
+            <span class="hidden md:inline" data-i18n="refreshFeed">Refresh Feed</span>
+          </button>
+
+          <!-- WhatsApp Rate Digest Export -->
+          <button id="whatsapp-digest-btn" type="button" class="flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20bd5a] active:scale-95 text-emerald-950 font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl shadow transition cursor-pointer">
+            <i data-lucide="share-2" class="w-4 h-4 stroke-[2.5]"></i>
+            <span data-i18n="whatsappExport">WhatsApp Digest</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Dashboard Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-5 sm:py-6 space-y-6">
+
+    <!-- Quick KPI & Active Selection Strip -->
+    <section class="bg-white rounded-2xl shadow-sm border border-stone-200 p-4 sm:p-5">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full" data-i18n="selectedCommodity">
+              Selected Commodity & Market
+            </span>
+            <span id="active-last-updated" class="text-xs text-slate-500 font-medium">
+              Updated: Today, 06:30 PM
+            </span>
+          </div>
+          <div class="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 id="active-crop-title" class="text-2xl sm:text-3xl font-extrabold text-slate-900">
+              Nashik Red Onion
+            </h2>
+            <span class="text-base sm:text-lg font-semibold text-emerald-800 flex items-center gap-1">
+              <i data-lucide="map-pin" class="w-4 h-4 text-amber-600"></i>
+              <span id="active-mandi-title">Lasalgaon APMC</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Key Rate Summary Boxes -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+          <div class="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5">
+            <div class="text-[11px] font-bold uppercase text-slate-500" data-i18n="modalPrice">Modal Price</div>
+            <div class="text-lg sm:text-xl font-extrabold text-slate-900 mt-0.5" id="kpi-modal-price">₹2,240<span class="text-xs font-normal text-slate-500">/qtl</span></div>
+          </div>
+          <div class="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5">
+            <div class="text-[11px] font-bold uppercase text-slate-500" data-i18n="minMaxRange">Min – Max</div>
+            <div class="text-sm sm:text-base font-bold text-slate-800 mt-1" id="kpi-minmax-price">₹1,950 – ₹2,410</div>
+          </div>
+          <div class="bg-stone-50 border border-stone-200 rounded-xl px-3.5 py-2.5">
+            <div class="text-[11px] font-bold uppercase text-slate-500" data-i18n="arrivals">Arrivals (24h)</div>
+            <div class="text-sm sm:text-base font-bold text-slate-800 mt-1" id="kpi-arrivals">1,420 Tonnes</div>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-2.5">
+            <div class="text-[11px] font-bold uppercase text-emerald-800" data-i18n="forecast7d">3-Day Forecast</div>
+            <div class="text-lg sm:text-xl font-extrabold text-emerald-700 mt-0.5" id="kpi-forecast-price">₹2,420 <span class="text-xs font-bold bg-emerald-200/80 px-1.5 py-0.5 rounded">+8.0%</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Primary Interactive Grid: Sell-Timing Advisor + Perishability & 30-Day Trend Chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left Column (5 cols): Sell-Timing Heuristic Advisor & Perishability Risk Score -->
+      <section class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-stone-200 p-5 flex flex-col justify-between space-y-5">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <div class="flex items-center gap-2">
+              <div class="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                <i data-lucide="compass" class="w-5 h-5"></i>
+              </div>
+              <h3 class="text-lg font-extrabold text-slate-900" data-i18n="sellAdvisorTitle">Sell-Timing Heuristic Advisor</h3>
+            </div>
+            <span class="text-xs font-semibold text-slate-500 bg-stone-100 px-2.5 py-1 rounded-lg">EMA-7 Engine</span>
+          </div>
+
+          <!-- Dynamic Recommendation Card -->
+          <div id="advisor-card" class="rounded-2xl p-4 sm:p-5 border-2 bg-amber-50 border-amber-400 transition-all">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <span class="text-xs font-bold uppercase tracking-wider text-amber-800" data-i18n="recommendedAction">Recommended Action</span>
+                <div id="advisor-action-badge" class="mt-1 inline-flex items-center gap-2 text-xl sm:text-2xl font-extrabold text-amber-950">
+                  <i data-lucide="clock" class="w-6 h-6 text-amber-600"></i>
+                  <span id="advisor-action-text">Hold 3 Days</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-xs font-semibold text-slate-600 block" data-i18n="expectedGain">Expected Gain</span>
+                <span id="advisor-gain-pct" class="text-lg sm:text-xl font-extrabold text-emerald-700">+8.0%</span>
+              </div>
+            </div>
+            <p id="advisor-reasoning" class="mt-3 text-sm text-slate-800 leading-relaxed font-medium">
+              Strong upward price momentum (+6.4% above 7-day EMA) combined with tightening arrivals at Lasalgaon APMC indicates an estimated ₹180/qtl upside over the next 3 days.
+            </p>
+          </div>
+
+          <!-- Crop Perishability Risk Score Module (Stretch Feature) -->
+          <div class="mt-5 bg-stone-50 rounded-2xl p-4 border border-stone-200">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <i data-lucide="thermometer-sun" class="w-4 h-4 text-rose-600"></i>
+                <h4 class="text-sm font-bold text-slate-900" data-i18n="perishabilityTitle">Crop Perishability Risk Score</h4>
+              </div>
+              <span id="spoilage-badge" class="text-xs font-extrabold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                Low Risk (24/100)
+              </span>
+            </div>
+
+            <div class="space-y-3.5">
+              <!-- Harvest Humidity Slider -->
+              <div>
+                <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                  <label for="humidity-slider" data-i18n="harvestHumidity">Storage / Ambient Humidity (%)</label>
+                  <span id="humidity-val" class="font-bold text-emerald-800">58%</span>
+                </div>
+                <input id="humidity-slider" type="range" min="30" max="95" value="58" class="w-full cursor-pointer" />
+              </div>
+
+              <!-- Days Since Harvest Slider -->
+              <div>
+                <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                  <label for="days-harvest-slider" data-i18n="daysSinceHarvest">Days Since Harvest</label>
+                  <span id="days-harvest-val" class="font-bold text-emerald-800">2 Days</span>
+                </div>
+                <input id="days-harvest-slider" type="range" min="0" max="20" value="2" class="w-full cursor-pointer" />
+              </div>
+
+              <!-- Spoilage Progress Meter -->
+              <div class="pt-1">
+                <div class="w-full bg-stone-200 rounded-full h-2.5 overflow-hidden">
+                  <div id="spoilage-bar" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-300" style="width: 24%"></div>
+                </div>
+                <p id="spoilage-note" class="text-xs text-slate-600 mt-1.5">
+                  Shelf-life remaining: ~16 days under ventilated storage. Safe to hold for price rally.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Heuristic Signals Mini Footer -->
+        <div class="grid grid-cols-3 gap-2 pt-2 border-t border-stone-200 text-center">
+          <div class="bg-stone-50 rounded-xl p-2">
+            <div class="text-[11px] font-semibold text-slate-500">7-Day EMA</div>
+            <div id="signal-ema" class="text-sm font-extrabold text-slate-900">₹2,105</div>
+          </div>
+          <div class="bg-stone-50 rounded-xl p-2">
+            <div class="text-[11px] font-semibold text-slate-500">Momentum</div>
+            <div id="signal-momentum" class="text-sm font-extrabold text-emerald-700">+6.4%</div>
+          </div>
+          <div class="bg-stone-50 rounded-xl p-2">
+            <div class="text-[11px] font-semibold text-slate-500">Supply Trend</div>
+            <div id="signal-supply" class="text-sm font-extrabold text-amber-700">-11% Vol</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column (7 cols): 30-Day Historical Price Trend Chart -->
+      <section class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-stone-200 p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <h3 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                <i data-lucide="trending-up" class="w-5 h-5 text-emerald-700"></i>
+                <span data-i18n="trendChartTitle">30-Day Historical Price & Arrival Trend</span>
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Daily Modal Price (₹/qtl), 7-Day Exponential Moving Average (EMA), & Market Arrivals (Tonnes)
+              </p>
+            </div>
+            <div class="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl">
+              <button type="button" data-range="30" class="chart-range-btn bg-white text-emerald-900 shadow-xs text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer">30D</button>
+              <button type="button" data-range="60" class="chart-range-btn text-slate-600 hover:text-slate-900 text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer">60D</button>
+              <button type="button" data-range="90" class="chart-range-btn text-slate-600 hover:text-slate-900 text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer">90D</button>
+            </div>
+          </div>
+
+          <!-- Responsive Chart Container -->
+          <div class="relative w-full h-72 sm:h-80">
+            <canvas id="priceTrendChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chart Legend / Insight Strip -->
+        <div class="mt-4 pt-3 border-t border-stone-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+          <div class="flex flex-wrap items-center gap-4">
+            <span class="flex items-center gap-1.5 font-semibold">
+              <span class="w-3 h-3 rounded-full bg-emerald-600 inline-block"></span> Modal Price (₹/qtl)
+            </span>
+            <span class="flex items-center gap-1.5 font-semibold">
+              <span class="w-3 h-0.5 bg-amber-500 inline-block border-t-2 border-dashed border-amber-500"></span> 7-Day EMA
+            </span>
+            <span class="flex items-center gap-1.5 font-semibold">
+              <span class="w-3 h-3 rounded-xs bg-slate-300 inline-block"></span> Arrivals (Tonnes)
+            </span>
+          </div>
+          <span id="chart-peak-note" class="font-bold text-emerald-800">30D Peak: ₹2,260/qtl</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- Mandi Price Explorer Section -->
+    <section class="bg-white rounded-2xl shadow-sm border border-stone-200 p-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+        <div>
+          <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+            <i data-lucide="store" class="w-5 h-5 text-emerald-700"></i>
+            <span data-i18n="explorerTitle">Mandi Price Explorer</span>
+          </h3>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5" data-i18n="explorerSubtitle">
+            Tap any crop rate card to inspect its 30-day trend, sell advisory, and net transport profit.
+          </p>
+        </div>
+
+        <!-- Search & Filter Controls -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full md:w-auto">
+          <!-- Search Input -->
+          <div class="relative">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input id="search-input" type="text" placeholder="Search crop or mandi..." class="w-full pl-9 pr-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+          </div>
+
+          <!-- Crop Filter -->
+          <select id="crop-filter" aria-label="Filter by Crop" class="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 cursor-pointer">
+            <option value="ALL">All Crops (5)</option>
+          </select>
+
+          <!-- Mandi Filter -->
+          <select id="mandi-filter" aria-label="Filter by APMC Mandi" class="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 cursor-pointer">
+            <option value="ALL">All APMC Mandis (6)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Rate Cards Grid -->
+      <div id="mandi-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Populated dynamically by JavaScript -->
+      </div>
+    </section>
+
+    <!-- Bottom Grid: Distance & Net Profit Calculator + Price Threshold Alerts Manager -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Left (7 cols): Distance & Net Profit Calculator -->
+      <section class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-stone-200 p-5">
+        <div class="flex items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+              <i data-lucide="truck" class="w-5 h-5 text-emerald-700"></i>
+              <span data-i18n="profitCalcTitle">Distance & Net Profit Calculator</span>
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">
+              Compares net realized earnings across neighboring APMC mandis after haulage & market cess.
+            </p>
+          </div>
+          <span id="calc-crop-pill" class="text-xs font-bold bg-emerald-100 text-emerald-900 px-3 py-1 rounded-full">
+            Nashik Red Onion
+          </span>
+        </div>
+
+        <!-- Calculator Parameters -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-stone-50 p-3.5 rounded-2xl border border-stone-200 mb-4">
+          <div>
+            <label for="calc-qty" class="block text-xs font-bold text-slate-700 mb-1" data-i18n="harvestQty">Quantity (Quintals)</label>
+            <input id="calc-qty" type="number" min="1" max="1000" value="40" class="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+          </div>
+          <div>
+            <label for="calc-vehicle" class="block text-xs font-bold text-slate-700 mb-1" data-i18n="vehicleRate">Vehicle & Rate (₹/km)</label>
+            <select id="calc-vehicle" class="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 cursor-pointer">
+              <option value="22">Chota Hathi / Pickup (₹22/km)</option>
+              <option value="35" selected>Eicher 14ft Truck (₹35/km)</option>
+              <option value="52">Heavy 10-Wheeler (₹52/km)</option>
+            </select>
+          </div>
+          <div>
+            <label for="calc-cess" class="block text-xs font-bold text-slate-700 mb-1" data-i18n="marketCess">APMC Cess & Hamali (%)</label>
+            <input id="calc-cess" type="number" min="0" max="10" step="0.5" value="2.0" class="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+          </div>
+        </div>
+
+        <!-- Mandi Profit Comparison Cards -->
+        <div id="profit-comparison-list" class="space-y-3">
+          <!-- Populated dynamically by JS -->
+        </div>
+      </section>
+
+      <!-- Right (5 cols): Price Threshold Alerts Manager -->
+      <section class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-stone-200 p-5 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-4">
+            <div>
+              <h3 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                <i data-lucide="bell-ring" class="w-5 h-5 text-amber-600"></i>
+                <span data-i18n="alertsTitle">Price Threshold Alerts</span>
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Get instant alerts when modal or forecast rates hit your target.
+              </p>
+            </div>
+            <!-- Demo Trigger Button -->
+            <button id="simulate-spike-btn" type="button" class="text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2.5 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1">
+              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+              <span>Simulate Spike</span>
+            </button>
+          </div>
+
+          <!-- Add New Alert Form -->
+          <form id="alert-form" class="bg-stone-50 p-3.5 rounded-2xl border border-stone-200 space-y-3 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label for="alert-crop-select" class="block text-xs font-bold text-slate-700 mb-1">Crop</label>
+                <select id="alert-crop-select" class="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                  <!-- Populated by JS -->
+                </select>
+              </div>
+              <div>
+                <label for="alert-target-input" class="block text-xs font-bold text-slate-700 mb-1">Target Rate (₹/qtl)</label>
+                <input id="alert-target-input" type="number" min="500" max="50000" step="10" value="2400" required class="w-full px-3 py-2 bg-white border border-stone-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+              </div>
+            </div>
+            <button type="submit" class="w-full bg-emerald-800 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm py-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i>
+              <span data-i18n="setAlertBtn">Set Price Trigger Alert</span>
+            </button>
+          </form>
+
+          <!-- Active Alerts List -->
+          <div id="alerts-list" class="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+            <!-- Populated dynamically by JS -->
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-stone-200 text-xs text-slate-500 flex items-center justify-between">
+          <span>Alerts saved offline in browser storage</span>
+          <span id="triggered-count-badge" class="font-bold text-emerald-800">0 Triggered</span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-stone-200 py-4 px-4 mt-8">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+      <div class="font-semibold text-slate-700">
+        MandiMitra: CropCash Hack • Empowering Smallholder Farmers with Transparent APMC Data
+      </div>
+      <div>
+        Offline-First LocalStorage Engine • EMA-7 Time-Series Heuristics
+      </div>
+    </div>
+  </footer>
+
+  <!-- WhatsApp Rate Digest Modal -->
+  <div id="whatsapp-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-stone-200 overflow-hidden">
+      <div class="bg-[#075E54] text-white px-5 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <i data-lucide="message-square-share" class="w-5 h-5 text-[#25D366]"></i>
+          <h3 class="font-extrabold text-base sm:text-lg">WhatsApp Mandi Rate Digest</h3>
+        </div>
+        <button id="close-whatsapp-modal" type="button" class="text-white/80 hover:text-white p-1 rounded-lg cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-xs text-slate-600">
+          Formatted summary ready to share with farmer groups, FPOs, or local transporters:
+        </p>
+        <textarea id="whatsapp-digest-text" rows="9" readonly class="w-full p-3.5 bg-stone-50 border border-stone-300 rounded-xl text-xs sm:text-sm font-mono text-slate-800 focus:outline-none"></textarea>
+        <div class="flex flex-wrap items-center justify-end gap-2.5">
+          <button id="copy-digest-btn" type="button" class="flex-1 sm:flex-none bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 cursor-pointer">
+            <i data-lucide="copy" class="w-4 h-4"></i>
+            <span>Copy Summary</span>
+          </button>
+          <a id="share-whatsapp-link" href="#" target="_blank" rel="noopener noreferrer" class="flex-1 sm:flex-none bg-[#25D366] hover:bg-[#20bd5a] text-emerald-950 font-extrabold text-sm px-4 py-2.5 rounded-xl flex items-center justify-center gap-2">
+            <i data-lucide="external-link" class="w-4 h-4"></i>
+            <span>Open WhatsApp</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic & Seeded 90-Day APMC Dataset -->
+  <script src="app.js"></script>
+</body>
+</html>
